@@ -14,3 +14,31 @@ class Sample(DeclarativeBase):
     user_id = Column(Integer, ForeignKey(primary_key(app_model.User)))
     user = relation(app_model.User)
 
+
+class Hotspot(DeclarativeBase):
+    __tablename__ = 'hotspot'
+
+    #{ Columns
+
+    hotspot_id = Column(Integer, primary_key=True)
+    hotspot_alias = Column(Unicode(50), unique=True)
+
+    #}
+
+class Hotspotlog(DeclarativeBase):
+    __tablename__ = 'hotspot_log'
+
+    #{ Columns
+
+    hotspotlog_id = Column(Integer, primary_key=True)
+    hotspot_id = Column(Integer, ForeignKey(Hotspot.hotspot_id))
+    hotspot = relation('Hotspot', backref='logs')
+    email = Column(Unicode(50))
+    date = Column(DateTime)
+    name = Column(Unicode(50))
+    surname = Column(Unicode(50))
+
+
+    #}
+
+
