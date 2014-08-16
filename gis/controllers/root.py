@@ -4,11 +4,11 @@
 from tg import TGController
 from tg import expose, flash, require, url, lurl, request, redirect, validate
 from tg.i18n import ugettext as _, lazy_ugettext as l_
-
+from tg import config
 from gis import model
 from gis.model import *
 from datetime import datetime, time
-
+from gis.lib.mailchimpsync import GisChimp
 from tgext.crud import CrudRestController
 from sprox.tablebase import TableBase
 from sprox.fillerbase import TableFiller
@@ -16,19 +16,18 @@ from tgext.crud import EasyCrudRestController
 from tgext.admin.tgadminconfig import BootstrapTGAdminConfig as TGAdminConfig
 from tgext.admin.controller import AdminController
 
+from tgext.pluggable import app_model
 
-
-class HotspotlogController(EasyCrudRestController):
-    model = Hotspotlog
 
 class RootController(TGController):
 
-    admin=HotspotlogController(DBSession)
+    admin = AdminController(model, app_model.DBSession, config_type=TGAdminConfig)
 
     @expose('gis.templates.index')
     def index(self):
-        sample = DBSession.query(model.Sample).first()
-        return dict(sample=sample)
+        import pprint
+        pprint.pprint(TGAdminConfig.default_index_template)
+        return dict(page='index')
 
     @expose()
     def posttest(self):
@@ -49,7 +48,7 @@ class RootController(TGController):
         gis.redirect = http://mywebsite.com
 
         """
-        hotspot_alias = kw.get('HOTSPOT_ID')
+        hotspot_alias = kw.get('HOTSPOT_ID', 'test01')
         date = kw.get('LOGIN')
         try:
             date = datetime.strptime(date, '%Y-%m-%d %H:%M:%S')
@@ -62,17 +61,38 @@ class RootController(TGController):
             email = email.strip()
             if email:
                 try:
-                    hs = DBSession.query(Hotspot).filter(Hotspot.hotspot_alias==hotspot_alias).one()
+                    hs = DBSession.query(model.Hotspot).filter(model.Hotspot.hotspot_alias==hotspot_alias).one()
                 except:
-                    hs = Hotspot()
+                    hs = model.Hotspot()
                     hs.hotspot_alias = hotspot_alias
 
-                hslog = Hotspotlog()
+                hslog = model.Hotspotlog()
                 hslog.email = email
                 hslog.name= name
                 hslog.surname = surname
                 hslog.date=date
                 hs.logs.append(hslog)
                 DBSession.add(hs)
-        print kw
+                DBSession.flush()
+                gm = GisChimp(config)
+                mchimp = dict(SOURCE='hotspot', HOTSPOT_ID=hs.hotspot_alias, FNAME=name, LNAME=surname)
+                userinfo = gm.subscribe(email, **mchimp)
+                import pprint
+                pprint.pprint(userinfo)
+                if userinfo:
+                    try:
+                        crmobj = DBSession.query(model.Crm).filter(model.Crm.euid==userinfo['euid']).one()
+                    except:
+                        crmobj = model.Crm(euid=userinfo['euid'])
+                    crmobj.email=userinfo['email']
+                    crmobj.leid=userinfo['leid']
+                    for col in ['COMPANY','FNAME','LNAME','GENDER','SOURCE']:
+                        if hasattr(crmobj, col.lower()):
+                            setattr(crmobj, col.lower(), userinfo['merges'][col])
+                    DBSession.add(crmobj)
+                    DBSession.flush()
+
+                import pprint
+                pprint.pprint(userinfo)
+
         redirect('/')

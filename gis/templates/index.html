@@ -1,5 +1,3 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml"
       xmlns:py="http://genshi.edgewall.org/"
       xmlns:xi="http://www.w3.org/2001/XInclude">
@@ -7,18 +5,46 @@
   <xi:include href="master.html" />
 
 <head>
-  <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
-  <title>Welcome to TurboGears pluggable Application</title>
-  <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/_pluggable/gis/css/style.css')}" />
+  <title></title>
 </head>
 
 <body>
-    <div py:if="request.identity">Hi ${request.identity['user']}</div>
-    <div id="hello_box">
-        <img src="${tg.url('/_pluggable/gis/images/star.png')}"/>
-        Hello from, ${h.gis.bold(sample.name)}
-        owned by ${sample.user}
+    <div class="row">
+        <div class="span-12 centered">
+            <div id="logo" class="text-center"><img src="/img/logo.png"
+             alt="" />
+             </div>
+
+ <form action="/gis/post" method="post" enctype="multipart/form-data">
+     <span class="error"></span>
+    <div>
+        <input name="sprox_id" type="hidden" id="sprox_id" />
+        <input name="HOTSPOT_ID" type="hidden" id="HOTSPOT_ID" value="test02"/>
+    <div class="">
+      <div class="form-group">
+        <label for="sx_email" class="control-label">Email</label>
+        <div><input name="Email" id="sx_email" type="text" class="form-control" /></div>
+        <span id="sx_email:error" class="error help-block"></span>
+      </div>
+    </div><div class="">
+      <div class="form-group">
+        <label for="sx_name" class="control-label">Name</label>
+        <div><input name="Name" id="sx_name" type="text" class="form-control" /></div>
+        <span id="sx_name:error" class="error help-block"></span>
+      </div>
+    </div><div class="">
+      <div class="form-group">
+        <label for="sx_surname" class="control-label">Surname</label>
+        <div><input name="Surname" id="sx_surname" type="text" class="form-control" /></div>
+        <span id="sx_surname:error" class="error help-block"></span>
+      </div>
     </div>
-    <div>${h.call_partial('gis.partials:something', name='Partial')}</div>
+    <div class="error"><span id=":error" class="error"></span></div>
+</div>
+    <input value="Login" type="submit" class="btn btn-primary" />
+</form>
+
+        </div>
+    </div>
 </body>
 </html>
