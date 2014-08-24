@@ -1,12 +1,24 @@
 import mailchimp
+try:
+    from tgext.pluggable import app_model
+except:
+    pass
 
+from gis.model import MCList, MCGroup, MCGrouping
 
-class GisChimp(object):
+class GisChimpLists(object):
     def __init__(self, config, *args, **kw):
         self.apikey = config.get('gis.mailchimp.apikey')
-        self.lid = config.get('gis.mailchimp.lid')
 
-    def subscribe(self, email, *args, **kw):
+    def list(self, *args, **kw):
+        """
+        http://apidocs.mailchimp.com/api/2.0/lists/list.php
+        """
+        m = mailchimp.Mailchimp(self.apikey)
+        ret = m.lists.list()
+        return ret
+
+    def batch_subscribe(self, email,double_optin=True, *args, **kw):
         """
         kw => {'CRMUSER_ID': user_id, 'HOTSPOT_ID': 'ca-testme', 'FNAME': 'Daniele', 'LNAME': 'Favara',
                     'mc_language': 'en','send_welcome': True}
@@ -24,6 +36,7 @@ class GisChimp(object):
             ],
             update_existing=True,
             replace_interests=False,
+            double_optin=double_optin,
         )
         if len(ret.get('adds')) > 0:
             euid = ret['adds'][0]['euid']
@@ -42,57 +55,108 @@ class GisChimp(object):
         else:
             return {}
 
-"""
-{u'data': [{u'clients': [],
-            u'email': u'daniele@zeroisp.com',
-            u'email_type': u'html',
-            u'euid': u'5998cbb678',
-            u'geo': [],
-            u'id': u'5998cbb678',
-            u'info_changed': u'2014-08-16 12:39:08',
-            u'ip_opt': None,
-            u'ip_signup': u'2.36.198.241',
-            u'is_gmonkey': False,
-            u'language': u'en',
-            u'leid': 226874305,
-            u'list_id': u'e04a00c507',
-            u'list_name': u"Ca'puccino Newsletter",
-            u'lists': [],
-            u'member_rating': 2,
-            u'merges': {u'ADDRESS': u'',
-                        u'BIRTHDAY': u'',
-                        u'COMPANY': u'',
-                        u'CRMUSER_ID': u'1',
-                        u'EMAIL': u'daniele@zeroisp.com',
-                        u'FNAME': u'Daniele',
-                        u'GENDER': u'',
-                        u'HOTSPOT_ID': u'ca-testme',
-                        u'LNAME': u'Favara',
-                        u'SOURCE': u''},
-            u'notes': [],
-            u'static_segments': [],
-            u'status': u'pending', # u'status': u'subscribed',
-            u'timestamp': u'',
-            u'timestamp_opt': None,
-            u'timestamp_signup': u'2014-08-16 12:39:08',
-            u'web_id': 226874305}],
- u'error_count': 0,
- u'errors': [],
- u'success_count': 1}
-"""
+    def subscribe(self, email, lid=None, double_optin=False, send_welcome=True, *args, **kw):
+        """
+        http://apidocs.mailchimp.com/api/2.0/lists/subscribe.php
+        """
+        m = mailchimp.Mailchimp(self.apikey)
+
+        ret = m.lists.subscribe(
+            id=lid,
+            email={'email': email},
+            email_type = 'html',
+            merge_vars = kw,
+            update_existing=True,
+            replace_interests=False,
+            double_optin=double_optin,
+            send_welcome=send_welcome
+        )
+        euid=ret.get('euid')
+        ret = m.lists.member_info(
+                    id=lid,
+                    emails=[
+                        {
+                            'euid' : euid
+                        }
+                    ])
+
+        return ret['data'][0]
+
+    def interest_groupings(self, lid=None, *args, **kw):
+        """
+        kw => {'CRMUSER_ID': user_id, 'HOTSPOT_ID': 'ca-testme', 'FNAME': 'Daniele', 'LNAME': 'Favara',
+                    'mc_language': 'en','send_welcome': True}
+        """
+        m = mailchimp.Mailchimp(self.apikey)
+
+        ret = m.lists.interest_groupings(
+            id=lid,
+        )
+
+        return ret
+
+class GisChimpSync(object):
+    def __init__(self, config, *args, **kw):
+        self.apikey = config.get('gis.mailchimp.apikey')
+        self.g=GisChimpLists(config)
+    def list(self, *args, **kw):
+        ret = self.g.list()
+        data = ret.get('data')
+        for linfo in data:
+            id = linfo['id']
+            try:
+                lobj = app_model.DBSession.query(MCList).filter(MCList.id==id).one()
+            except:
+                lobj = MCList(id=id)
+            for key, val in linfo.iteritems():
+                if hasattr(lobj, key):
+                    print key, val
+                    setattr(lobj, key, val)
+            app_model.DBSession.add(lobj)
+            ginfos = self.g.interest_groupings(lid=id)
+            for ginfo in ginfos:
+                gid = ginfo['id']
+                gname = ginfo['name']
+                try:
+                    gobj = app_model.DBSession.query(MCGroup).filter(MCGroup.id==gid).one()
+                except:
+                    gobj = MCGroup(id=gid)
+
+                gobj.name = gname
+                lobj.mc_groups.append(gobj)
+                app_model.DBSession.add(gobj)
+                for ging in ginfo.get('groups'):
+                    import pprint
+                    pprint.pprint(ging)
+                    gingid = ging['id']
+                    gingname = ging['name']
+                    try:
+                        gingobj = app_model.DBSession.query(MCGrouping).filter(MCGrouping.id==gingid).one()
+                    except:
+                        gingobj = MCGrouping(id=gingid)
+                    gingobj.name = gingname
+                    gobj.mc_groupings.append(gingobj)
+                    app_model.DBSession.add(gingobj)
 
 
-"""
-{u'add_count': 1,
- u'adds': [{u'email': u'daniele@zeroisp.com',
-            u'euid': u'5998cbb678',
-            u'leid': u'226874305'}],
- u'error_count': 0,
- u'errors': [],
- u'update_count': 0,
- u'updates': []}
+if __name__ == "__main__":
+    config={}
 
-"""
+    config['gis.mailchimp.apikey']='284e52da1d2d07ae7d6dc9da97089947-us8'
+    config['gis.mailchimp.lid']='e04a00c507'
+    g=GisChimpList(config)
+    kw = {'CRMUSER_ID': 1,
+            'HOTSPOT_ID': 'ca-testme',
+            'FNAME': 'Daniele',
+            'LNAME': 'Favara',
+            'mc_language': 'en',
+            'GROUPINGS': [{u'groups': ['Westfield'],u'name': u'Hotspot'}]
+            }
+    import pprint
+    #pprint.pprint(g.subscribe('daniele@zeroisp.com', double_optin=False, **kw))
+    #pprint.pprint(g.interest_groupings())
+    #pprint.pprint(g.list())
+
 
 
 

@@ -35,7 +35,11 @@ setup(
     package_data={'tgapp.gis': ['i18n/*/LC_MESSAGES/*.mo',
                                  'templates/*/*',
                                  'public/*/*']},
-    entry_points="""
-    """,
+    entry_points={
+        'gearbox.commands': [
+            'gis-sync-mc = gis.commands.sync:GisSyncCommand',
+            'gis-test = gis.commands.main:Files',
+        ],
+    },
     zip_safe=False
 )
